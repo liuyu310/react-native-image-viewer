@@ -180,6 +180,12 @@ export class Props {
   public onChange?: (index?: number) => void = () => {
     //
   };
+  /**
+   * 當圖片開始加載時調用
+   * */
+  public onLoadImage?: (index?: number) => void = () => {
+    //
+  };
 }
 
 export class State {
