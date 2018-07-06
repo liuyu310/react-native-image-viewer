@@ -230,14 +230,14 @@ export default class ImageViewer extends React.Component<Props, State> {
     const vxRTL = I18nManager.isRTL ? -vx : vx;
     const isLeftMove = I18nManager.isRTL
       ? this.positionXNumber - this.standardPositionX <
-      -(this.props.flipThreshold || 0)
+        -(this.props.flipThreshold || 0)
       : this.positionXNumber - this.standardPositionX >
-      (this.props.flipThreshold || 0);
+        (this.props.flipThreshold || 0);
     const isRightMove = I18nManager.isRTL
       ? this.positionXNumber - this.standardPositionX >
-      (this.props.flipThreshold || 0)
+        (this.props.flipThreshold || 0)
       : this.positionXNumber - this.standardPositionX <
-      -(this.props.flipThreshold || 0);
+        -(this.props.flipThreshold || 0);
 
     if (vxRTL > 0.7) {
       // 上一张
@@ -502,7 +502,7 @@ export default class ImageViewer extends React.Component<Props, State> {
               imageHeight={screenHeight}
             >
               <View style={this.styles.loadingContainer}>
-                {this!.props!.onLoadImage!(index)}
+                {this!.props!.loadingRender!()}
               </View>
             </Wrapper>
           );
@@ -609,16 +609,16 @@ export default class ImageViewer extends React.Component<Props, State> {
           )}
 
           {this.props.imageUrls[this.state.currentShowIndex || 0] &&
-          this.props.imageUrls[this.state.currentShowIndex || 0]
-            .originSizeKb &&
-          this.props.imageUrls[this.state.currentShowIndex || 0]
-            .originUrl && (
-            <View style={this.styles.watchOrigin}>
-              <TouchableOpacity style={this.styles.watchOriginTouchable}>
-                <Text style={this.styles.watchOriginText}>查看原图(2M)</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            this.props.imageUrls[this.state.currentShowIndex || 0]
+              .originSizeKb &&
+            this.props.imageUrls[this.state.currentShowIndex || 0]
+              .originUrl && (
+              <View style={this.styles.watchOrigin}>
+                <TouchableOpacity style={this.styles.watchOriginTouchable}>
+                  <Text style={this.styles.watchOriginText}>查看原图(2M)</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           <View
             style={[
               { bottom: 0, position: "absolute", zIndex: 9999 },
