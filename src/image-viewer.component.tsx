@@ -1,656 +1,540 @@
-import * as React from 'react';
-import {
-  Animated,
-  CameraRoll,
-  Dimensions,
-  I18nManager,
-  Image,
-  PanResponder,
-  Platform,
-  Text,
-  TouchableHighlight,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
-  ViewStyle
-} from 'react-native';
-import ImageZoom from 'react-native-image-pan-zoom';
-import styles from './image-viewer.style';
-import { IImageInfo, IImageSize, Props, State } from './image-viewer.type';
-
-export default class ImageViewer extends React.Component<Props, State> {
-  public static defaultProps = new Props();
-  public state = new State();
-
-  // 背景透明度渐变动画
-  private fadeAnim = new Animated.Value(0);
-
-  // 当前基准位置
-  private standardPositionX = 0;
-
-  // 整体位移，用来切换图片用
-  private positionXNumber = 0;
-  private positionX = new Animated.Value(0);
-
-  private width = 0;
-  private height = 0;
-
-  private styles = styles(0, 0, 'transparent');
-
-  // 是否执行过 layout. fix 安卓不断触发 onLayout 的 bug
-  private hasLayout = false;
-
-  // 记录已加载的图片 index
-  private loadedIndex = new Map<number, boolean>();
-
-  private handleLongPressWithIndex = new Map<number, any>();
-
-  public componentWillMount() {
-    this.init(this.props);
+"use strict";
+var __extends = (this && this.__extends) || (function () {
+  var extendStatics = Object.setPrototypeOf ||
+    ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+    function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+  return function (d, b) {
+    extendStatics(d, b);
+    function __() { this.constructor = d; }
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+  };
+})();
+var __assign = (this && this.__assign) || Object.assign || function(t) {
+  for (var s, i = 1, n = arguments.length; i < n; i++) {
+    s = arguments[i];
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+      t[p] = s[p];
   }
-
-  public componentWillReceiveProps(nextProps: Props) {
-    if (nextProps.index !== this.state.currentShowIndex) {
-      this.setState(
-        {
-          currentShowIndex: nextProps.index
-        },
-        () => {
-          // 立刻预加载要看的图
-          this.loadImage(nextProps.index || 0);
-
-          this.jumpToCurrentImage();
-
-          // 显示动画
-          Animated.timing(this.fadeAnim, {
-            toValue: 1,
-            duration: 200
-          }).start();
+  return t;
+};
+var __rest = (this && this.__rest) || function (s, e) {
+  var t = {};
+  for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+    t[p] = s[p];
+  if (s != null && typeof Object.getOwnPropertySymbols === "function")
+    for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) if (e.indexOf(p[i]) < 0)
+      t[p[i]] = s[p[i]];
+  return t;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var React = require("react");
+var react_native_1 = require("react-native");
+var react_native_image_pan_zoom_1 = require("react-native-image-pan-zoom");
+var image_viewer_style_1 = require("./image-viewer.style");
+var image_viewer_type_1 = require("./image-viewer.type");
+var ImageViewer = (function (_super) {
+  __extends(ImageViewer, _super);
+  function ImageViewer() {
+    var _this = _super !== null && _super.apply(this, arguments) || this;
+    _this.state = new image_viewer_type_1.State();
+    // 背景透明度渐变动画
+    _this.fadeAnim = new react_native_1.Animated.Value(0);
+    // 当前基准位置
+    _this.standardPositionX = 0;
+    // 整体位移，用来切换图片用
+    _this.positionXNumber = 0;
+    _this.positionX = new react_native_1.Animated.Value(0);
+    _this.width = 0;
+    _this.height = 0;
+    _this.styles = image_viewer_style_1.default(0, 0, "transparent");
+    // 是否执行过 layout. fix 安卓不断触发 onLayout 的 bug
+    _this.hasLayout = false;
+    // 记录已加载的图片 index
+    _this.loadedIndex = new Map();
+    _this.handleLongPressWithIndex = new Map();
+    /**
+     * 触发溢出水平滚动
+     */
+    _this.handleHorizontalOuterRangeOffset = function (offsetX) {
+      _this.positionXNumber = _this.standardPositionX + offsetX;
+      _this.positionX.setValue(_this.positionXNumber);
+      var offsetXRTL = !react_native_1.I18nManager.isRTL ? offsetX : -offsetX;
+      if (offsetXRTL < 0) {
+        if (_this.state.currentShowIndex ||
+          0 < _this.props.imageUrls.length - 1) {
+          _this.loadImage((_this.state.currentShowIndex || 0) + 1);
         }
-      );
-    }
-  }
-
-  /**
-   * props 有变化时执行
-   */
-  public init(nextProps: Props) {
-    if (nextProps.imageUrls.length === 0) {
-      // 隐藏时候清空
-      this.fadeAnim.setValue(0);
-      return this.setState(new State());
-    }
-
-    // 给 imageSizes 塞入空数组
-    const imageSizes: IImageSize[] = [];
-    nextProps.imageUrls.forEach(imageUrl => {
-      imageSizes.push({
-        width: imageUrl.width || 0,
-        height: imageUrl.height || 0,
-        status: 'loading'
+      }
+      else if (offsetXRTL > 0) {
+        if (_this.state.currentShowIndex || 0 > 0) {
+          _this.loadImage((_this.state.currentShowIndex || 0) - 1);
+        }
+      }
+    };
+    /**
+     * 手势结束，但是没有取消浏览大图
+     */
+    _this.handleResponderRelease = function (vx) {
+      var vxRTL = react_native_1.I18nManager.isRTL ? -vx : vx;
+      var isLeftMove = react_native_1.I18nManager.isRTL
+        ? _this.positionXNumber - _this.standardPositionX <
+        -(_this.props.flipThreshold || 0)
+        : _this.positionXNumber - _this.standardPositionX >
+        (_this.props.flipThreshold || 0);
+      var isRightMove = react_native_1.I18nManager.isRTL
+        ? _this.positionXNumber - _this.standardPositionX >
+        (_this.props.flipThreshold || 0)
+        : _this.positionXNumber - _this.standardPositionX <
+        -(_this.props.flipThreshold || 0);
+      if (vxRTL > 0.7) {
+        // 上一张
+        _this.goBack.call(_this);
+        // 这里可能没有触发溢出滚动，为了防止图片不被加载，调用加载图片
+        if (_this.state.currentShowIndex || 0 > 0) {
+          _this.loadImage((_this.state.currentShowIndex || 0) - 1);
+        }
+        return;
+      }
+      else if (vxRTL < -0.7) {
+        // 下一张
+        _this.goNext.call(_this);
+        if (_this.state.currentShowIndex || 0 < _this.props.imageUrls.length - 1) {
+          _this.loadImage((_this.state.currentShowIndex || 0) + 1);
+        }
+        return;
+      }
+      if (isLeftMove) {
+        // 上一张
+        _this.goBack.call(_this);
+      }
+      else if (isRightMove) {
+        // 下一张
+        _this.goNext.call(_this);
+        return;
+      }
+      else {
+        // 回到之前的位置
+        _this.resetPosition.call(_this);
+        return;
+      }
+    };
+    /**
+     * 到上一张
+     */
+    _this.goBack = function () {
+      if (_this.state.currentShowIndex === 0) {
+        // 回到之前的位置
+        _this.resetPosition.call(_this);
+        return;
+      }
+      _this.positionXNumber = !react_native_1.I18nManager.isRTL
+        ? _this.standardPositionX + _this.width
+        : _this.standardPositionX - _this.width;
+      _this.standardPositionX = _this.positionXNumber;
+      react_native_1.Animated.timing(_this.positionX, {
+        toValue: _this.positionXNumber,
+        duration: 100
+      }).start();
+      var nextIndex = (_this.state.currentShowIndex || 0) - 1;
+      _this.setState({
+        currentShowIndex: nextIndex
+      }, function () {
+        if (_this.props.onChange) {
+          _this.props.onChange(_this.state.currentShowIndex);
+        }
       });
-    });
-
-    this.setState(
-      {
-        currentShowIndex: nextProps.index,
-        imageSizes
-      },
-      () => {
+    };
+    /**
+     * 长按
+     */
+    _this.handleLongPress = function (image) {
+      if (_this.props.saveToLocalByLongPress) {
+        // 出现保存到本地的操作框
+        _this.setState({ isShowMenu: true });
+      }
+      if (_this.props.onLongPress) {
+        _this.props.onLongPress(image);
+      }
+    };
+    /**
+     * 单击
+     */
+    _this.handleClick = function () {
+      if (_this.props.onClick) {
+        _this.props.onClick(_this.handleCancel);
+      }
+    };
+    /**
+     * 双击
+     */
+    _this.handleDoubleClick = function () {
+      if (_this.props.onDoubleClick) {
+        _this.props.onDoubleClick(_this.handleCancel);
+      }
+    };
+    /**
+     * 退出
+     */
+    _this.handleCancel = function () {
+      _this.hasLayout = false;
+      if (_this.props.onCancel) {
+        _this.props.onCancel();
+      }
+    };
+    /**
+     * 完成布局
+     */
+    _this.handleLayout = function (event) {
+      if (_this.hasLayout) {
+        return;
+      }
+      _this.hasLayout = true;
+      _this.width = event.nativeEvent.layout.width;
+      _this.height = event.nativeEvent.layout.height;
+      _this.styles = image_viewer_style_1.default(_this.width, _this.height, _this.props.backgroundColor || "transparent");
+      // 强制刷新
+      _this.forceUpdate();
+      _this.jumpToCurrentImage();
+    };
+    /**
+     * 保存当前图片到本地相册
+     */
+    _this.saveToLocal = function () {
+      if (!_this.props.onSave) {
+        react_native_1.CameraRoll.saveToCameraRoll(_this.props.imageUrls[_this.state.currentShowIndex || 0].url);
+        _this.props.onSaveToCamera(_this.state.currentShowIndex);
+      }
+      else {
+        _this.props.onSave(_this.props.imageUrls[_this.state.currentShowIndex || 0].url);
+      }
+      _this.setState({ isShowMenu: false });
+    };
+    _this.handleLeaveMenu = function () {
+      _this.setState({ isShowMenu: false });
+    };
+    _this.handleSwipeDown = function () {
+      if (_this.props.onSwipeDown) {
+        _this.props.onSwipeDown();
+      }
+      _this.handleCancel();
+    };
+    return _this;
+  }
+  ImageViewer.prototype.componentWillMount = function () {
+    this.init(this.props);
+  };
+  ImageViewer.prototype.componentWillReceiveProps = function (nextProps) {
+    var _this = this;
+    if (nextProps.index !== this.state.currentShowIndex) {
+      this.setState({
+        currentShowIndex: nextProps.index
+      }, function () {
         // 立刻预加载要看的图
-        this.loadImage(nextProps.index || 0);
-
-        this.jumpToCurrentImage();
-
+        _this.loadImage(nextProps.index || 0);
+        _this.jumpToCurrentImage();
         // 显示动画
-        Animated.timing(this.fadeAnim, {
+        react_native_1.Animated.timing(_this.fadeAnim, {
           toValue: 1,
           duration: 200
         }).start();
-      }
-    );
-  }
-
+      });
+    }
+  };
+  /**
+   * props 有变化时执行
+   */
+  ImageViewer.prototype.init = function (nextProps) {
+    var _this = this;
+    if (nextProps.imageUrls.length === 0) {
+      // 隐藏时候清空
+      this.fadeAnim.setValue(0);
+      return this.setState(new image_viewer_type_1.State());
+    }
+    // 给 imageSizes 塞入空数组
+    var imageSizes = [];
+    nextProps.imageUrls.forEach(function (imageUrl) {
+      imageSizes.push({
+        width: imageUrl.width || 0,
+        height: imageUrl.height || 0,
+        status: "loading"
+      });
+    });
+    this.setState({
+      currentShowIndex: nextProps.index,
+      imageSizes: imageSizes
+    }, function () {
+      // 立刻预加载要看的图
+      _this.loadImage(nextProps.index || 0);
+      _this.jumpToCurrentImage();
+      // 显示动画
+      react_native_1.Animated.timing(_this.fadeAnim, {
+        toValue: 1,
+        duration: 200
+      }).start();
+    });
+  };
   /**
    * 调到当前看图位置
    */
-  public jumpToCurrentImage() {
+  ImageViewer.prototype.jumpToCurrentImage = function () {
     // 跳到当前图的位置
     this.positionXNumber = -this.width * (this.state.currentShowIndex || 0);
     this.standardPositionX = this.positionXNumber;
     this.positionX.setValue(this.positionXNumber);
-  }
-
+  };
   /**
    * 加载图片，主要是获取图片长与宽
    */
-  public loadImage(index: number) {
-    if (!this!.state!.imageSizes![index]) {
+  ImageViewer.prototype.loadImage = function (index) {
+    var _this = this;
+    if (!this.state.imageSizes[index]) {
       return;
     }
-
     if (this.loadedIndex.has(index)) {
       return;
     }
     this.loadedIndex.set(index, true);
-
-    const image = this.props.imageUrls[index];
-    const imageStatus = { ...this!.state!.imageSizes![index] };
-
+    var image = this.props.imageUrls[index];
+    var imageStatus = __assign({}, this.state.imageSizes[index]);
     // 保存 imageSize
-    const saveImageSize = () => {
+    var saveImageSize = function () {
       // 如果已经 success 了，就不做处理
-      if (this!.state!.imageSizes![index] && this!.state!.imageSizes![index].status !== 'loading') {
+      if (_this.state.imageSizes[index] &&
+        _this.state.imageSizes[index].status !== "loading") {
         return;
       }
-
-      const imageSizes = this!.state!.imageSizes!.slice();
+      var imageSizes = _this.state.imageSizes.slice();
       imageSizes[index] = imageStatus;
-      this.setState({ imageSizes });
+      _this.setState({ imageSizes: imageSizes });
     };
-
-    if (this!.state!.imageSizes![index].status === 'success') {
+    if (this.state.imageSizes[index].status === "success") {
       // 已经加载过就不会加载了
       return;
     }
-
     // 如果已经有宽高了，直接设置为 success
-    if (this!.state!.imageSizes![index].width > 0 && this!.state!.imageSizes![index].height > 0) {
-      imageStatus.status = 'success';
-      saveImageSize();
-      return;
-    }
-
+    // if (this.state.imageSizes[index].width > 0 &&
+    //         //     this.state.imageSizes[index].height > 0) {
+    //         //     imageStatus.status = "success";
+    //         //     saveImageSize();
+    //         //     return;
+    //         // }
     // 是否加载完毕了图片大小
-    const sizeLoaded = false;
+    var sizeLoaded = false;
     // 是否加载完毕了图片
-    let imageLoaded = false;
-
+    var imageLoaded = false;
     // Tagged success if url is started with file:, or not set yet(for custom source.uri).
-    if (!image.url || image.url.startsWith(`file:`)) {
+    if (!image.url || image.url.startsWith("file:")) {
       imageLoaded = true;
     }
-
-    Image.getSize(
-      image.url,
-      (width: number, height: number) => {
-        imageStatus.width = width;
-        imageStatus.height = height;
-        imageStatus.status = 'success';
+    react_native_1.Image.getSize(image.url, function (width, height) {
+      console.log('get success')
+      imageStatus.width = width;
+      imageStatus.height = height;
+      imageStatus.status = "success";
+      saveImageSize();
+    }, function (error) {
+      console.log('error', error);
+      try {
+        var data = react_native_1.Image.resolveAssetSource(image.props.source);
+        console.log('width success 222');
+        imageStatus.width = data.width;
+        imageStatus.height = data.height;
+        imageStatus.status = "success";
         saveImageSize();
-      },
-      () => {
-        try {
-          const data = (Image as any).resolveAssetSource(image.props.source);
-          imageStatus.width = data.width;
-          imageStatus.height = data.height;
-          imageStatus.status = 'success';
-          saveImageSize();
-        } catch (newError) {
-          // Give up..
-          imageStatus.status = 'fail';
-        }
       }
-    );
-  }
-
-  /**
-   * 触发溢出水平滚动
-   */
-  public handleHorizontalOuterRangeOffset = (offsetX: number = 0) => {
-    console.log('handleHorizontalOuterRangeOffset', offsetX);
-    this.positionXNumber = this.standardPositionX + offsetX;
-    this.positionX.setValue(this.positionXNumber);
-
-    const offsetXRTL = !I18nManager.isRTL ? offsetX : -offsetX;
-
-    if (offsetXRTL < 0) {
-      if (this!.state!.currentShowIndex || 0 < this.props.imageUrls.length - 1) {
-        this.loadImage((this!.state!.currentShowIndex || 0) + 1);
+      catch (newError) {
+        // Give up..
+        imageStatus.status = "fail";
       }
-    } else if (offsetXRTL > 0) {
-      if (this!.state!.currentShowIndex || 0 > 0) {
-        this.loadImage((this!.state!.currentShowIndex || 0) - 1);
-      }
-    }
+    });
   };
-
-  /**
-   * 手势结束，但是没有取消浏览大图
-   */
-  public handleResponderRelease = (vx: number = 0) => {
-    const vxRTL = I18nManager.isRTL ? -vx : vx;
-    const isLeftMove = I18nManager.isRTL
-      ? this.positionXNumber - this.standardPositionX < -(this.props.flipThreshold || 0)
-      : this.positionXNumber - this.standardPositionX > (this.props.flipThreshold || 0);
-    const isRightMove = I18nManager.isRTL
-      ? this.positionXNumber - this.standardPositionX > (this.props.flipThreshold || 0)
-      : this.positionXNumber - this.standardPositionX < -(this.props.flipThreshold || 0);
-
-    if (vxRTL > 0.7) {
-      // 上一张
-      this.goBack.call(this);
-
-      // 这里可能没有触发溢出滚动，为了防止图片不被加载，调用加载图片
-      if (this.state.currentShowIndex || 0 > 0) {
-        this.loadImage((this.state.currentShowIndex || 0) - 1);
-      }
-      return;
-    } else if (vxRTL < -0.7) {
-      // 下一张
-      this.goNext.call(this);
-      if (this.state.currentShowIndex || 0 < this.props.imageUrls.length - 1) {
-        this.loadImage((this.state.currentShowIndex || 0) + 1);
-      }
-      return;
-    }
-
-    if (isLeftMove) {
-      // 上一张
-      this.goBack.call(this);
-    } else if (isRightMove) {
-      // 下一张
-      this.goNext.call(this);
-      return;
-    } else {
-      // 回到之前的位置
-      this.resetPosition.call(this);
-      return;
-    }
-  };
-
-  /**
-   * 到上一张
-   */
-  public goBack = () => {
-    if (this.state.currentShowIndex === 0) {
-      // 回到之前的位置
-      this.resetPosition.call(this);
-      return;
-    }
-
-    this.positionXNumber = !I18nManager.isRTL
-      ? this.standardPositionX + this.width
-      : this.standardPositionX - this.width;
-    this.standardPositionX = this.positionXNumber;
-    Animated.timing(this.positionX, {
-      toValue: this.positionXNumber,
-      duration: 100
-    }).start();
-
-    const nextIndex = (this.state.currentShowIndex || 0) - 1;
-
-    this.setState(
-      {
-        currentShowIndex: nextIndex
-      },
-      () => {
-        if (this.props.onChange) {
-          this.props.onChange(this.state.currentShowIndex);
-        }
-      }
-    );
-  };
-
   /**
    * 到下一张
    */
-  public goNext = () => {
+  ImageViewer.prototype.goNext = function () {
+    var _this = this;
     if (this.state.currentShowIndex === this.props.imageUrls.length - 1) {
       // 回到之前的位置
       this.resetPosition.call(this);
       return;
     }
-
-    this.positionXNumber = !I18nManager.isRTL
+    this.positionXNumber = !react_native_1.I18nManager.isRTL
       ? this.standardPositionX - this.width
       : this.standardPositionX + this.width;
     this.standardPositionX = this.positionXNumber;
-    Animated.timing(this.positionX, {
+    react_native_1.Animated.timing(this.positionX, {
       toValue: this.positionXNumber,
       duration: 100
     }).start();
-
-    const nextIndex = (this.state.currentShowIndex || 0) + 1;
-
-    this.setState(
-      {
-        currentShowIndex: nextIndex
-      },
-      () => {
-        if (this.props.onChange) {
-          this.props.onChange(this.state.currentShowIndex);
-        }
+    var nextIndex = (this.state.currentShowIndex || 0) + 1;
+    this.setState({
+      currentShowIndex: nextIndex
+    }, function () {
+      if (_this.props.onChange) {
+        _this.props.onChange(_this.state.currentShowIndex);
       }
-    );
+    });
   };
-
   /**
    * 回到原位
    */
-  public resetPosition() {
+  ImageViewer.prototype.resetPosition = function () {
     this.positionXNumber = this.standardPositionX;
-    Animated.timing(this.positionX, {
+    react_native_1.Animated.timing(this.positionX, {
       toValue: this.standardPositionX,
       duration: 150
     }).start();
-  }
-
-  /**
-   * 长按
-   */
-  public handleLongPress = (image: IImageInfo) => {
-    if (this.props.saveToLocalByLongPress) {
-      // 出现保存到本地的操作框
-      this.setState({ isShowMenu: true });
-    }
-
-    if (this.props.onLongPress) {
-      this.props.onLongPress(image);
-    }
   };
-
-  /**
-   * 单击
-   */
-  public handleClick = () => {
-    if (this.props.onClick) {
-      this.props.onClick(this.handleCancel);
-    }
-  };
-
-  /**
-   * 双击
-   */
-  public handleDoubleClick = () => {
-    if (this.props.onDoubleClick) {
-      this.props.onDoubleClick(this.handleCancel);
-    }
-  };
-
-  /**
-   * 退出
-   */
-  public handleCancel = () => {
-    this.hasLayout = false;
-    if (this.props.onCancel) {
-      this.props.onCancel();
-    }
-  };
-
-  /**
-   * 完成布局
-   */
-  public handleLayout = (event: any) => {
-    if (event.nativeEvent.layout.width !== this.width) {
-      this.hasLayout = true;
-
-      this.width = event.nativeEvent.layout.width;
-      this.height = event.nativeEvent.layout.height;
-      this.styles = styles(this.width, this.height, this.props.backgroundColor || 'transparent');
-
-      // 强制刷新
-      this.forceUpdate();
-      this.jumpToCurrentImage();
-    }
-  };
-
   /**
    * 获得整体内容
    */
-  public getContent() {
+  ImageViewer.prototype.getContent = function () {
+    var _this = this;
     // 获得屏幕宽高
-    const screenWidth = this.width;
-    const screenHeight = this.height;
-
-    const ImageElements = this.props.imageUrls.map((image, index) => {
-      if ((this.state.currentShowIndex || 0) > index + 1 || (this.state.currentShowIndex || 0) < index - 1) {
-        return <View key={index} style={{ width: screenWidth, height: screenHeight }} />;
+    var screenWidth = this.width;
+    var screenHeight = this.height;
+    var ImageElements = this.props.imageUrls.map(function (image, index) {
+      if ((_this.state.currentShowIndex || 0) > index + 1 ||
+        (_this.state.currentShowIndex || 0) < index - 1) {
+        return (<react_native_1.View key={index} style={{ width: screenWidth, height: screenHeight }}/>);
       }
-
-      if (!this.handleLongPressWithIndex.has(index)) {
-        this.handleLongPressWithIndex.set(index, this.handleLongPress.bind(this, image));
+      if (!_this.handleLongPressWithIndex.has(index)) {
+        _this.handleLongPressWithIndex.set(index, _this.handleLongPress.bind(_this, image));
       }
-
-      let width = this!.state!.imageSizes![index] && this!.state!.imageSizes![index].width;
-      let height = this.state.imageSizes![index] && this.state.imageSizes![index].height;
-      const imageInfo = this.state.imageSizes![index];
-
+      var width = _this.state.imageSizes[index] &&
+        _this.state.imageSizes[index].width;
+      var height = _this.state.imageSizes[index] && _this.state.imageSizes[index].height;
+      var imageInfo = _this.state.imageSizes[index];
       if (!imageInfo || !imageInfo.status) {
-        return <View key={index} style={{ width: screenWidth, height: screenHeight }} />;
+        return (<react_native_1.View key={index} style={{ width: screenWidth, height: screenHeight }}/>);
       }
-
       // 如果宽大于屏幕宽度,整体缩放到宽度是屏幕宽度
       if (width > screenWidth) {
-        const widthPixel = screenWidth / width;
+        var widthPixel = screenWidth / width;
         width *= widthPixel;
         height *= widthPixel;
       }
-
       // 如果此时高度还大于屏幕高度,整体缩放到高度是屏幕高度
       if (height > screenHeight) {
-        const HeightPixel = screenHeight / height;
+        var HeightPixel = screenHeight / height;
         width *= HeightPixel;
         height *= HeightPixel;
       }
-
-      const Wrapper = ({ children, ...others }: any) => (
-        <ImageZoom
-          cropWidth={this.width}
-          cropHeight={this.height}
-          maxOverflow={this.props.maxOverflow}
-          horizontalOuterRangeOffset={this.handleHorizontalOuterRangeOffset}
-          responderRelease={this.handleResponderRelease}
-          onLongPress={this.handleLongPressWithIndex.get(index)}
-          onClick={this.handleClick}
-          onDoubleClick={this.handleDoubleClick}
-          enableSwipeDown={this.props.enableSwipeDown}
-          onSwipeDown={this.handleSwipeDown}
-          {...others}
-        >
+      var Wrapper = function (_a) {
+        var children = _a.children, others = __rest(_a, ["children"]);
+        return (<react_native_image_pan_zoom_1.default cropWidth={_this.width} cropHeight={_this.height} maxOverflow={_this.props.maxOverflow} horizontalOuterRangeOffset={_this.handleHorizontalOuterRangeOffset} responderRelease={_this.handleResponderRelease} onLongPress={_this.handleLongPressWithIndex.get(index)} onClick={_this.handleClick} onDoubleClick={_this.handleDoubleClick} enableSwipeDown={true} onSwipeDown={_this.handleSwipeDown} {...others}>
           {children}
-        </ImageZoom>
-      );
-
+        </react_native_image_pan_zoom_1.default>);
+      };
       switch (imageInfo.status) {
-        case 'loading':
-          return (
-            <Wrapper
-              key={index}
-              style={{
-                ...this.styles.modalContainer,
-                ...this.styles.loadingContainer
-              }}
-              imageWidth={screenWidth}
-              imageHeight={screenHeight}
-            >
-              <View style={this.styles.loadingContainer}>{this!.props!.loadingRender!()}</View>
-            </Wrapper>
-          );
-        case 'success':
-          if (!image.props) {
-            image.props = {};
+        case "loading":
+          return (<Wrapper key={index} style={__assign({}, _this.styles.modalContainer, _this.styles.loadingContainer)} imageWidth={screenWidth} imageHeight={screenHeight}>
+            <react_native_1.View style={_this.styles.loadingContainer}>
+              {_this.props.onLoadImage(index)}
+              {/*{_this.props.loadingRender()}*/}
+            </react_native_1.View>
+          </Wrapper>);
+        case "success":
+          var finalProps = __assign({}, (image.props || {}));
+          if (!finalProps.style) {
+            finalProps.style = {};
           }
-
-          if (!image.props.style) {
-            image.props.style = {};
+          finalProps.style = __assign({}, finalProps.style, _this.styles.imageStyle, { width: +width,
+            height: +height });
+          if (!finalProps.source) {
+            finalProps.source = {};
           }
-          image.props.style = {
-            ...this.styles.imageStyle, // User config can override above.
-            ...image.props.style,
-            width,
-            height
-          };
+          finalProps.source = __assign({ uri: image.url }, finalProps.source);
+          return (<react_native_image_pan_zoom_1.default key={index} cropWidth={+_this.width} cropHeight={+_this.height} maxOverflow={+_this.props.maxOverflow} horizontalOuterRangeOffset={_this.handleHorizontalOuterRangeOffset} responderRelease={_this.handleResponderRelease} onLongPress={_this.handleLongPressWithIndex.get(index)} onClick={_this.handleClick} onDoubleClick={_this.handleDoubleClick} imageWidth={+width} imageHeight={+height} enableSwipeDown={true} onSwipeDown={_this.handleSwipeDown}>
+            <react_native_1.Image {...finalProps}/>
+          </react_native_image_pan_zoom_1.default>);
+        case "fail":
 
-          if (typeof image.props.source === 'number') {
-            // source = require(..), doing nothing
-          } else {
-            if (!image.props.source) {
-              image.props.source = {};
-            }
-            image.props.source = {
-              uri: image.url,
-              ...image.props.source
-            };
-          }
-
-          return (
-            <ImageZoom
-              key={index}
-              cropWidth={this.width}
-              cropHeight={this.height}
-              maxOverflow={this.props.maxOverflow}
-              horizontalOuterRangeOffset={this.handleHorizontalOuterRangeOffset}
-              responderRelease={this.handleResponderRelease}
-              onLongPress={this.handleLongPressWithIndex.get(index)}
-              onClick={this.handleClick}
-              onDoubleClick={this.handleDoubleClick}
-              imageWidth={width}
-              imageHeight={height}
-              enableSwipeDown={this.props.enableSwipeDown}
-              onSwipeDown={this.handleSwipeDown}
-            >
-              {this!.props!.renderImage!(image.props)}
-            </ImageZoom>
-          );
-        case 'fail':
-          return (
-            <Wrapper
-              key={index}
-              style={this.styles.modalContainer}
-              imageWidth={this.props.failImageSource ? this.props.failImageSource.width : screenWidth}
-              imageHeight={this.props.failImageSource ? this.props.failImageSource.height : screenHeight}
-            >
-              {this.props.failImageSource &&
-                this!.props!.renderImage!({
-                  source: {
-                    uri: this.props.failImageSource.url
-                  },
-                  style: {
-                    width: this.props.failImageSource.width,
-                    height: this.props.failImageSource.height
-                  }
-                })}
-            </Wrapper>
-          );
+          return (<Wrapper key={index} style={_this.styles.modalContainer} imageWidth={_this.props.failImageSource
+            ? _this.props.failImageSource.width
+            : screenWidth} imageHeight={_this.props.failImageSource
+            ? _this.props.failImageSource.height
+            : screenHeight}>
+            {_this.props.failImageSource && (<react_native_1.Image source={{
+              uri: _this.props.failImageSource.url
+            }} style={{
+              width: _this.props.failImageSource.width,
+              height: _this.props.failImageSource.height
+            }}/>)}
+          </Wrapper>);
       }
     });
+    return (<react_native_1.Animated.View style={{ zIndex: 9999 }}>
+      <react_native_1.Animated.View style={__assign({}, this.styles.container, { opacity: this.fadeAnim })}>
+        {this.props.renderHeader(this.state.currentShowIndex)}
 
-    return (
-      <Animated.View style={{ zIndex: 9 }}>
-        <Animated.View style={{ ...this.styles.container, opacity: this.fadeAnim }}>
-          {this!.props!.renderHeader!(this.state.currentShowIndex)}
+        <react_native_1.View style={this.styles.arrowLeftContainer}>
+          <react_native_1.TouchableWithoutFeedback onPress={this.goBack}>
+            <react_native_1.View>{this.props.renderArrowLeft()}</react_native_1.View>
+          </react_native_1.TouchableWithoutFeedback>
+        </react_native_1.View>
 
-          <View style={this.styles.arrowLeftContainer}>
-            <TouchableWithoutFeedback onPress={this.goBack}>
-              <View>{this!.props!.renderArrowLeft!()}</View>
-            </TouchableWithoutFeedback>
-          </View>
+        <react_native_1.View style={this.styles.arrowRightContainer}>
+          <react_native_1.TouchableWithoutFeedback onPress={this.goNext}>
+            <react_native_1.View>{this.props.renderArrowRight()}</react_native_1.View>
+          </react_native_1.TouchableWithoutFeedback>
+        </react_native_1.View>
 
-          <View style={this.styles.arrowRightContainer}>
-            <TouchableWithoutFeedback onPress={this.goNext}>
-              <View>{this!.props!.renderArrowRight!()}</View>
-            </TouchableWithoutFeedback>
-          </View>
+        <react_native_1.Animated.View style={__assign({}, this.styles.moveBox, { transform: [{ translateX: this.positionX }], width: this.width * this.props.imageUrls.length })}>
+          {ImageElements}
+        </react_native_1.Animated.View>
+        {this.props.renderIndicator((this.state.currentShowIndex || 0) + 1, this.props.imageUrls.length)}
 
-          <Animated.View
-            style={{
-              ...this.styles.moveBox,
-              transform: [{ translateX: this.positionX }],
-              width: this.width * this.props.imageUrls.length
-            }}
-          >
-            {ImageElements}
-          </Animated.View>
-          {this!.props!.renderIndicator!((this.state.currentShowIndex || 0) + 1, this.props.imageUrls.length)}
-
-          {this.props.imageUrls[this.state.currentShowIndex || 0] &&
-            this.props.imageUrls[this.state.currentShowIndex || 0].originSizeKb &&
-            this.props.imageUrls[this.state.currentShowIndex || 0].originUrl && (
-              <View style={this.styles.watchOrigin}>
-                <TouchableOpacity style={this.styles.watchOriginTouchable}>
-                  <Text style={this.styles.watchOriginText}>查看原图(2M)</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          <View style={[{ bottom: 0, position: 'absolute', zIndex: 9 }, this.props.footerContainerStyle]}>
-            {this!.props!.renderFooter!(this.state.currentShowIndex)}
-          </View>
-        </Animated.View>
-      </Animated.View>
-    );
-  }
-
-  /**
-   * 保存当前图片到本地相册
-   */
-  public saveToLocal = () => {
-    if (!this.props.onSave) {
-      CameraRoll.saveToCameraRoll(this.props.imageUrls[this.state.currentShowIndex || 0].url);
-      this!.props!.onSaveToCamera!(this.state.currentShowIndex);
-    } else {
-      this.props.onSave(this.props.imageUrls[this.state.currentShowIndex || 0].url);
-    }
-
-    this.setState({ isShowMenu: false });
+        {this.props.imageUrls[this.state.currentShowIndex || 0] &&
+        this.props.imageUrls[this.state.currentShowIndex || 0]
+          .originSizeKb &&
+        this.props.imageUrls[this.state.currentShowIndex || 0]
+          .originUrl && (<react_native_1.View style={this.styles.watchOrigin}>
+          <react_native_1.TouchableOpacity style={this.styles.watchOriginTouchable}>
+            <react_native_1.Text style={this.styles.watchOriginText}>查看原图(2M)</react_native_1.Text>
+          </react_native_1.TouchableOpacity>
+        </react_native_1.View>)}
+        <react_native_1.View style={[
+          { bottom: 0, position: "absolute", zIndex: 9999 },
+          this.props.footerContainerStyle
+        ]}>
+          {this.props.renderFooter(this.state.currentShowIndex)}
+        </react_native_1.View>
+      </react_native_1.Animated.View>
+    </react_native_1.Animated.View>);
   };
-
-  public getMenu() {
+  ImageViewer.prototype.getMenu = function () {
     if (!this.state.isShowMenu) {
       return null;
     }
-
-    return (
-      <View style={this.styles.menuContainer}>
-        <View style={this.styles.menuShadow} />
-        <View style={this.styles.menuContent}>
-          <TouchableHighlight underlayColor="#F2F2F2" onPress={this.saveToLocal} style={this.styles.operateContainer}>
-            <Text style={this.styles.operateText}>{this.props.menuContext.saveToLocal}</Text>
-          </TouchableHighlight>
-          <TouchableHighlight
-            underlayColor="#F2F2F2"
-            onPress={this.handleLeaveMenu}
-            style={this.styles.operateContainer}
-          >
-            <Text style={this.styles.operateText}>{this.props.menuContext.cancel}</Text>
-          </TouchableHighlight>
-        </View>
-      </View>
-    );
-  }
-
-  public handleLeaveMenu = () => {
-    this.setState({ isShowMenu: false });
+    return (<react_native_1.View style={this.styles.menuContainer}>
+      <react_native_1.View style={this.styles.menuShadow}/>
+      <react_native_1.View style={this.styles.menuContent}>
+        <react_native_1.TouchableHighlight underlayColor="#F2F2F2" onPress={this.saveToLocal} style={this.styles.operateContainer}>
+          <react_native_1.Text style={this.styles.operateText}>
+            {this.props.menuContext.saveToLocal}
+          </react_native_1.Text>
+        </react_native_1.TouchableHighlight>
+        <react_native_1.TouchableHighlight underlayColor="#F2F2F2" onPress={this.handleLeaveMenu} style={this.styles.operateContainer}>
+          <react_native_1.Text style={this.styles.operateText}>
+            {this.props.menuContext.cancel}
+          </react_native_1.Text>
+        </react_native_1.TouchableHighlight>
+      </react_native_1.View>
+    </react_native_1.View>);
   };
-
-  public handleSwipeDown = () => {
-    if (this.props.onSwipeDown) {
-      this.props.onSwipeDown();
-    }
-    this.handleCancel();
+  ImageViewer.prototype.render = function () {
+    var childs = null;
+    childs = (<react_native_1.View>
+      {this.getContent()}
+      {this.getMenu()}
+    </react_native_1.View>);
+    return (<react_native_1.View onLayout={this.handleLayout} style={__assign({ flex: 1, overflow: "hidden" }, this.props.style)}>
+      {childs}
+    </react_native_1.View>);
   };
-
-  public render() {
-    let childs: React.ReactElement<any> = null as any;
-
-    childs = (
-      <View>
-        {this.getContent()}
-        {this.getMenu()}
-      </View>
-    );
-
-    return (
-      <View
-        onLayout={this.handleLayout}
-        style={{
-          flex: 1,
-          overflow: 'hidden',
-          ...this.props.style
-        }}
-      >
-        {childs}
-      </View>
-    );
-  }
-}
+  ImageViewer.defaultProps = new image_viewer_type_1.Props();
+  return ImageViewer;
+}(React.Component));
+exports.default = ImageViewer;
+//# sourceMappingURL=image-viewer.component.js.map
